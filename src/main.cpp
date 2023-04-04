@@ -1,7 +1,7 @@
 #include <iostream>
 #include <SDL2/SDL.h>
-#include <math.h>
-#include <algorithm>
+#include "util.h"
+#include "pixel.h"
 
 const int UPSCALE_HEIGHT = 800;
 const int UPSCALE_WIDTH = 1200;
@@ -11,11 +11,6 @@ const int DOWNSCALE_WIDTH = 500;
 
 const float scaleX[2] = {-2.00, 0.47};
 const float scaleY[2] = {-1.12, 1.12};
-
-struct Pixel
-{
-    int *color;
-};
 
 int palette[16][3] = {
     {66, 30, 15},
@@ -88,46 +83,6 @@ void mandelbrot(Pixel *pixels)
     }
 }
 
-void downSample(Pixel *pixels, Pixel *original)
-{
-    // Fill the pixel array by downsampling the original larger pixel array
-
-    float scaleX = (float)DOWNSCALE_WIDTH / (float)UPSCALE_WIDTH;
-    float scaleY = (float)DOWNSCALE_HEIGHT / (float)UPSCALE_HEIGHT;
-
-    for (int py = 0; py < DOWNSCALE_HEIGHT; ++py)
-    {
-        for (int px = 0; px < DOWNSCALE_WIDTH; ++px)
-        {
-            int xNearest = (int)std::floor((float)px / (float)scaleX);
-            int yNearest = (int)std::floor((float)py / (float)scaleY);
-
-            Pixel pixel = original[UPSCALE_WIDTH * yNearest + xNearest];
-            pixels[DOWNSCALE_WIDTH * py + px] = pixel;
-        }
-    }
-}
-
-void upSample(Pixel *pixels, Pixel *original)
-{
-    // Fill the pixels array by upsampling the original smaller pixels array
-
-    float scaleX = (float)UPSCALE_WIDTH / (float)DOWNSCALE_WIDTH;
-    float scaleY = (float)UPSCALE_HEIGHT / (float)DOWNSCALE_HEIGHT;
-
-    for (int py = 0; py < UPSCALE_HEIGHT; py++)
-    {
-        for (int px = 0; px < UPSCALE_WIDTH; px++)
-        {
-            int xNearest = std::floor((float)px / (float)scaleX);
-            int yNearest = std::floor((float)py / (float)scaleY);
-
-            Pixel pixel = original[DOWNSCALE_WIDTH * yNearest + xNearest];
-            pixels[UPSCALE_WIDTH * py + px] = pixel;
-        }
-    }
-}
-
 int main(int argc, char *argv[])
 {
     SDL_Init(SDL_INIT_VIDEO);
@@ -140,13 +95,13 @@ int main(int argc, char *argv[])
     SDL_RenderClear(renderer);
 
     Pixel *pixels = new Pixel[UPSCALE_HEIGHT * UPSCALE_WIDTH];
-    Pixel *downSampledPixels = new Pixel[DOWNSCALE_WIDTH * DOWNSCALE_HEIGHT];
+    Pixel *downPixels = new Pixel[DOWNSCALE_WIDTH * DOWNSCALE_HEIGHT];
 
     mandelbrot(pixels);
-    downSample(downSampledPixels, pixels);
-    upSample(pixels, downSampledPixels);
+    downSample(downPixels, pixels, DOWNSCALE_WIDTH, DOWNSCALE_HEIGHT, UPSCALE_WIDTH, UPSCALE_HEIGHT);
+    upSample(pixels, downPixels, UPSCALE_WIDTH, UPSCALE_HEIGHT, DOWNSCALE_WIDTH, DOWNSCALE_HEIGHT);
 
-    // Render the pixels 
+    // Render the pixels
     for (int py = 0; py < UPSCALE_HEIGHT; py++)
     {
         for (int px = 0; px < UPSCALE_WIDTH; px++)
@@ -160,7 +115,7 @@ int main(int argc, char *argv[])
     SDL_RenderPresent(renderer);
 
     free(pixels);
-    free(downSampledPixels);
+    free(downPixels);
 
     while (1)
     {

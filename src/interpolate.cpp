@@ -2,7 +2,7 @@
 #include <algorithm>
 
 #include "pixel.h"
-#include "util.h"
+#include "interpolate.h"
 
 void downSample(Pixel *pixels, Pixel *original, int downWidth, int downHeight, int upWidth, int upHeight)
 {

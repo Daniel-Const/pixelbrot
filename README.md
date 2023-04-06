@@ -2,16 +2,20 @@
 
 ![Alt text](public/pixelbrot_image.png?raw=true "Pixelbrot")
 
-A pixel art style animated mandelbrot visualisation using SDL2
+A pixel art style mandelbrot visualisation using SDL2
 
 ## Setup
 
 ```bash
+> mkdir bin
+> cd bin
+> cmake ..
 > make
 > ./pixelbrot
 ```
 
 ## TODO
 
-- Add GUI interface to change color scheme
 - Animate the pixelbrot!
+- Add more color palettes
+- Add screenshot button

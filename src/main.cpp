@@ -1,37 +1,25 @@
 #include <iostream>
 #include <SDL2/SDL.h>
-#include "util.h"
+#include <SDL_opengl.h>
+
+#include "interpolate.h"
 #include "pixel.h"
+#include "colors.h"
 
-const int UPSCALE_HEIGHT = 800;
-const int UPSCALE_WIDTH = 1200;
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_opengl3.h"
 
-const int DOWNSCALE_HEIGHT = 300;
-const int DOWNSCALE_WIDTH = 500;
+int UPSCALE_HEIGHT = 800;
+int UPSCALE_WIDTH = 1200;
+
+int DOWNSCALE_HEIGHT = 300;
+int DOWNSCALE_WIDTH = 500;
 
 const float scaleX[2] = {-2.00, 0.47};
 const float scaleY[2] = {-1.12, 1.12};
 
-int palette[16][3] = {
-    {66, 30, 15},
-    {25, 7, 26},
-    {9, 1, 47},
-    {4, 4, 73},
-    {0, 7, 100},
-    {12, 44, 138},
-    {24, 82, 177},
-    {57, 125, 209},
-    {134, 181, 229},
-    {211, 236, 248},
-    {241, 233, 191},
-    {248, 201, 95},
-    {255, 170, 0},
-    {204, 128, 0},
-    {153, 87, 0},
-    {106, 52, 3},
-};
-
-int black[3] = {0, 0, 0};
+int (*palette)[3] = standardPalette;
 
 int *getColor(int iteration, int maxIteration)
 {
@@ -83,16 +71,10 @@ void mandelbrot(Pixel *pixels)
     }
 }
 
-int main(int argc, char *argv[])
-{
-    SDL_Init(SDL_INIT_VIDEO);
+void createMandelbrotTexture(SDL_Renderer *renderer, SDL_Texture *texture) {
 
-    SDL_Window *window = SDL_CreateWindow("Pixelbrot", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, UPSCALE_WIDTH, UPSCALE_HEIGHT, 0);
-    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
-    SDL_Event event;
-
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
     SDL_RenderClear(renderer);
+    SDL_SetRenderTarget( renderer, texture );
 
     Pixel *pixels = new Pixel[UPSCALE_HEIGHT * UPSCALE_WIDTH];
     Pixel *downPixels = new Pixel[DOWNSCALE_WIDTH * DOWNSCALE_HEIGHT];
@@ -100,8 +82,8 @@ int main(int argc, char *argv[])
     mandelbrot(pixels);
     downSample(downPixels, pixels, DOWNSCALE_WIDTH, DOWNSCALE_HEIGHT, UPSCALE_WIDTH, UPSCALE_HEIGHT);
     upSample(pixels, downPixels, UPSCALE_WIDTH, UPSCALE_HEIGHT, DOWNSCALE_WIDTH, DOWNSCALE_HEIGHT);
-
-    // Render the pixels
+    
+    // Draw mandelbrot pixels to the texture
     for (int py = 0; py < UPSCALE_HEIGHT; py++)
     {
         for (int px = 0; px < UPSCALE_WIDTH; px++)
@@ -112,17 +94,113 @@ int main(int argc, char *argv[])
         }
     }
 
-    SDL_RenderPresent(renderer);
+    SDL_SetRenderTarget( renderer, NULL );
 
     free(pixels);
     free(downPixels);
+}
 
-    while (1)
+int main(int argc, char *argv[])
+{
+    const char* glsl_version = "#version 130";
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+
+    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    SDL_Window* window = SDL_CreateWindow("Pixelbrot", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, UPSCALE_WIDTH, UPSCALE_HEIGHT, window_flags);
+
+    SDL_GLContext gl_context = SDL_GL_CreateContext(window);
+    SDL_GL_MakeCurrent(window, gl_context);
+    SDL_GL_SetSwapInterval(1);
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+
+    glViewport(0, 0, UPSCALE_WIDTH, UPSCALE_HEIGHT);
+    
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
+    ImGui_ImplOpenGL3_Init(glsl_version);
+
+    SDL_Texture* texture = SDL_CreateTexture( renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_TARGET, UPSCALE_WIDTH, UPSCALE_HEIGHT);
+    createMandelbrotTexture(renderer, texture);
+
+    bool loop = true;
+    static int selectedColorPalette = 0;
+    int menuWidth = 280;
+    int menuHeight = 60;
+
+    while (loop)
     {
-        if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
-            break;
+        SDL_Event event;
+        while (SDL_PollEvent(&event))
+        {
+            ImGui_ImplSDL2_ProcessEvent(&event);
+
+            switch (event.type)
+            {
+            case SDL_QUIT:
+                loop = false;
+                break;
+            }
+        }
+
+        // Imgui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplSDL2_NewFrame(window);
+        ImGui::NewFrame();
+        ImGui::Begin("Color palettes");
+        ImGui::SetWindowSize(ImVec2(menuWidth, menuHeight));
+        ImGui::SetWindowPos(ImVec2(0, (float)(UPSCALE_HEIGHT - menuHeight)));
+       {
+            const char* items[] = { "Standard", "Funky"};
+            ImGui::Combo("select", &selectedColorPalette, items, IM_ARRAYSIZE(items));
+            ImGui::SameLine();
+        }
+        ImGui::End();
+        ImGui::EndFrame();
+
+        if (selectedColorPalette == 0 && palette != standardPalette) {
+            palette = standardPalette;
+            createMandelbrotTexture(renderer, texture);
+        }
+
+        if (selectedColorPalette == 1 && palette != otherPalette) {
+            palette = otherPalette;
+            createMandelbrotTexture(renderer, texture);
+        }
+
+
+        // Render: SDL
+        glClearColor(0, 0, 0, 255);
+        glClear(GL_COLOR_BUFFER_BIT);
+        SDL_RenderCopy (renderer, texture, 0, NULL);
+
+        // Render: ImGui
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        SDL_GL_SwapWindow(window);
     }
 
+
+    // Cleanup
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+
+    SDL_DestroyTexture( texture );
+    texture = NULL;
+
+    SDL_GL_DeleteContext(gl_context);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();

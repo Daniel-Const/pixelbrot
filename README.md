@@ -4,6 +4,11 @@
 
 A pixel art style mandelbrot visualisation using SDL2
 
+## Pixelating
+
+To pixelate the mandelbrot image a simple sampling procedure is used.  
+The image is downsampled to a much smaller resolution and then upsampled back to the original size. In the process details of the image are lost resulting in a pixelated look.
+
 ## Setup
 
 ```bash
@@ -16,6 +21,5 @@ A pixel art style mandelbrot visualisation using SDL2
 
 ## TODO
 
-- Animate the pixelbrot!
 - Add more color palettes
 - Add screenshot button

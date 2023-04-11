@@ -12,7 +12,7 @@ endif(NOT SDL2_FOUND)
 
 # OpenGL
 find_package(OpenGL REQUIRED)
-include_directories(${oPENgl_INCLUDE_DIRS})
+include_directories(${OPENgl_INCLUDE_DIRS})
 link_directories(${OpenGL_LIBRARY_DIRS})
 add_definitions(${OpenGL_DEFINITIONS})
 if (NOT OPENGL_FOUND)
